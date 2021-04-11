@@ -49,7 +49,6 @@ public class SONMR {
         ) throws IOException, InterruptedException {
 
             double thres = corr_factor * ((double)min_supp / (double)dataset_size) * (double)transactions_per_block;
-            System.err.println("THRESHOLD:" + thres);
 
             HashSet<HashSet<Integer>> freq_itemsets = new HashSet<HashSet<Integer>>();
 
@@ -77,8 +76,6 @@ public class SONMR {
                     HashSet<Integer> itemset = entry.getKey();
                     Integer v = entry.getValue();
 
-                    System.err.print(itemset);
-                    System.err.println(" : " + v);
                     if(v.intValue() >= thres){
                         current_freq_sets.add(itemset);
                     }
@@ -172,11 +169,6 @@ public class SONMR {
 
         
         public void setup(Context context) throws IOException{
-            // Configuration conf = context.getConfiguration();
-            // Get the values of the global shared variables.
-            // dataset_size = conf.getInt("dataset_size", Integer.MAX_VALUE);
-            // min_supp = conf.getInt("min_supp", 0);
-
             
             URI[] cacheFiles = context.getCacheFiles();
             
