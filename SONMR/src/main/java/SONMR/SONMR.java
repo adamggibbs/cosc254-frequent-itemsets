@@ -25,19 +25,24 @@ import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;
 
 public class SONMR {
 
-    public static class Mapper1
-            extends Mapper<Object, Text, Text, NullWritable> {
+    public static class Mapper1 extends Mapper<Object, Text, Text, NullWritable> {
 
+        // create final instance variable to return keys with
+        // value return is NullWritable so no varibale is necessary
         private final Text result = new Text();
-        // To store the global shared variables.
+
+        // to store the global shared variables.
         private int dataset_size;
         private int min_supp;
         private double corr_factor;
         private int transactions_per_block;
 
+        // setup function to get global variables from config
         public void setup(Context context) throws IOException{
+            // get configuration
             Configuration conf = context.getConfiguration();
-            // Get the values of the global shared variables.
+
+            // get the values of the global shared variables.
             dataset_size = conf.getInt("dataset_size", Integer.MAX_VALUE);
             min_supp = conf.getInt("min_supp", 0);
             corr_factor = conf.getDouble("corr_factor", 1.0);
@@ -45,18 +50,29 @@ public class SONMR {
 
         }
 
-        public void map(Object key, Text value, Context context
-        ) throws IOException, InterruptedException {
+        // map() function for Mapper1
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 
+            // calculate threshold for first mappers 
             double thres = corr_factor * ((double)min_supp / (double)dataset_size) * (double)transactions_per_block;
 
+            // create a LinkedList to store all the transactions as HashSets
+            // this will make lookups much quicker in the next steps
             LinkedList<HashSet<Integer>> transactions = new LinkedList<HashSet<Integer>>();
 
-            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(100);
+            // create a LinkedHashMap that stores the support of itemsets
+            // we use a Linked HashMap so we can have more efficient iteration
+            // give it 1000 buckets, there shouldn't be much more than 1000 itemsets at each level
+            // this saves time from rehashing when buckets are added 
+            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(1000);
 
-            // find support of one sets
+            // find support of size one itemsets and create LinkedList of HashSet transactions
             for(String transaction : value.toString().split("\n")){
+
+                // create a HashSet for this transaction
                 HashSet<Integer> new_transaction = new HashSet<Integer>(20);
+                // loop through items and update the support for that item
+                // also add that item to the transaction HashSet
                 for (String item : transaction.split("\\s")) {
                     new_transaction.add(Integer.valueOf(item));
 
@@ -64,6 +80,7 @@ public class SONMR {
                     itemset.add(Integer.valueOf(item));
                     itemsets_support.merge(itemset, 1, (a,b) -> a + b);
                 }
+                // add new transaction HashSet to LinkedList of transactions
                 transactions.add(new_transaction);
             }
             
@@ -92,7 +109,7 @@ public class SONMR {
                             }
                         }   
                         current_freq_sets.add(itemset);
-                        //freq_itemsets.add(itemset);
+                        
                         String toWrite = "";
                         for(Integer i : itemset){
                             toWrite += i;
@@ -119,22 +136,21 @@ public class SONMR {
         } // map()
     } // Mapper1
 
-    public static class Reducer1
-            extends Reducer<Text, NullWritable, Text, NullWritable> {
+    public static class Reducer1 extends Reducer<Text, NullWritable, Text, NullWritable> {
 
-        public void reduce(Text key, Iterable<NullWritable> values,
-                           Context context
-        ) throws IOException, InterruptedException {
+        // simply write key to output with a NullWritable for output
+        public void reduce(Text key, Iterable<NullWritable> values, Context context) throws IOException, InterruptedException {
             context.write(key, NullWritable.get());
         }
     }
 
-    public static class Mapper2
-            extends Mapper<Object, Text, Text, IntWritable> {
+    public static class Mapper2 extends Mapper<Object, Text, Text, IntWritable> {
 
+        // store final instance variables for Text key ouput and IntWritable value output
         private final Text result = new Text();
         private final IntWritable itemset_support = new IntWritable();
-        // To store the global shared variables.
+        
+
         private LinkedList<HashSet<Integer>> itemsets = new LinkedList<HashSet<Integer>>();
 
         
@@ -201,22 +217,22 @@ public class SONMR {
         } // map()
     } // Mapper2 class
 
-    public static class Reducer2
-            extends Reducer<Text, IntWritable, Text, IntWritable> {
+    public static class Reducer2 extends Reducer<Text, IntWritable, Text, IntWritable> {
 
+        // create final instance variable to store support of this key
         private final IntWritable support = new IntWritable();
-        // global variables
+        // to store global variables
         int min_supp;
 
         public void setup(Context context) throws IOException{
+            // get config
             Configuration conf = context.getConfiguration();
             // get the values of the global shared variables.
             min_supp = conf.getInt("min_supp", 0);
         }
 
-        public void reduce(Text key, Iterable<IntWritable> values,
-                           Context context
-        ) throws IOException, InterruptedException {
+        // sum all the supports from mappers and return (key, support)
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
             int sum = 0;
             for (IntWritable val : values) {
                 sum += val.get();
@@ -255,8 +271,6 @@ public class SONMR {
 
         FileInputFormat.addInputPath(job1, new Path(args[4]));
         FileOutputFormat.setOutputPath(job1, new Path(args[5]));
-
-        //job1.waitForCompletion(true);
 
         // Creating and setting up the second job. Must happen after setting the
         // global shared variables in the configuration
