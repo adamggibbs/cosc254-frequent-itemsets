@@ -7,9 +7,11 @@ import java.io.InputStreamReader;
 import java.net.URI;
 //import java.util.StringTokenizer;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.ArrayList;
+//import java.util.ArrayList;
 //import java.util.AbstractMap;
 import java.util.HashMap;
 
@@ -52,27 +54,33 @@ public class SONMR {
 
             double thres = corr_factor * ((double)min_supp / (double)dataset_size) * (double)transactions_per_block;
 
+            LinkedList<HashSet<Integer>> transactions = new LinkedList<HashSet<Integer>>();
+
             //HashSet<HashSet<Integer>> freq_itemsets = new HashSet<HashSet<Integer>>();
 
-            HashMap<HashSet<Integer>, Integer> itemsets_support = new HashMap<HashSet<Integer>, Integer>(100);
+            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(100);
             // HashSet<HashSet<Integer>> candidates = new HashSet<HashSet<Integer>>();
 
             // find support of one sets
             for(String transaction : value.toString().split("\n")){
+                HashSet<Integer> new_transaction = new HashSet<Integer>(20);
                 for (String item : transaction.split("\\s")) {
+                    new_transaction.add(Integer.valueOf(item));
+
                     HashSet<Integer> itemset = new HashSet<Integer>();
                     itemset.add(Integer.valueOf(item));
                     itemsets_support.merge(itemset, 1, (a,b) -> a + b);
                 }
+                transactions.add(new_transaction);
             }
             
             int level = 1;
-            HashSet<HashSet<Integer>> candidates;
-            ArrayList<HashSet<Integer>> current_freq_sets;
+            LinkedHashSet<HashSet<Integer>> candidates;
+            LinkedList<HashSet<Integer>> current_freq_sets;
             do {
 
-                current_freq_sets = new ArrayList<HashSet<Integer>>();
-                candidates = new HashSet<HashSet<Integer>>();
+                current_freq_sets = new LinkedList<HashSet<Integer>>();
+                candidates = new LinkedHashSet<HashSet<Integer>>();
                 // the following for each loop structure is from stack overflow:
                 // https://stackoverflow.com/questions/4234985/how-to-for-each-the-hashmap
                 for(Map.Entry<HashSet<Integer>, Integer> entry : itemsets_support.entrySet()) {
@@ -122,33 +130,42 @@ public class SONMR {
                 //     } //entry2
                 // } //entry1
                 
-                itemsets_support = new HashMap<HashSet<Integer>, Integer>();
-                for(String transaction : value.toString().split("\n")){
-                    for(HashSet<Integer> candidate : candidates){
-                        boolean itemset_contained = true;
-                        for(Integer i : candidate){
+                // itemsets_support = new HashMap<HashSet<Integer>, Integer>();
+                // for(String transaction : value.toString().split("\n")){
+                //     for(HashSet<Integer> candidate : candidates){
+                //         boolean itemset_contained = true;
+                //         for(Integer i : candidate){
                             
-                            boolean contained = false;
-                            for (String item : transaction.split("\\s")) {
-                                Integer temp = Integer.valueOf(item);
-                                if(temp.equals(i)){
-                                    contained = true;
-                                    break;
-                                }
-                            } // checking
-                            if(!contained){
-                                itemset_contained = false;
-                                break;
-                            }
+                //             boolean contained = false;
+                //             for (String item : transaction.split("\\s")) {
+                //                 Integer temp = Integer.valueOf(item);
+                //                 if(temp.equals(i)){
+                //                     contained = true;
+                //                     break;
+                //                 }
+                //             } // checking
+                //             if(!contained){
+                //                 itemset_contained = false;
+                //                 break;
+                //             }
                             
-                        } //item in itemset
+                //         } //item in itemset
 
-                        if(itemset_contained){
+                //         if(itemset_contained){
+                //             itemsets_support.merge(candidate, 1, (a,b) -> a + b);
+                //         }
+
+                //     } //itemset
+                // } //transaction
+
+                itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+                for(HashSet<Integer> transaction : transactions){
+                    for(HashSet<Integer> candidate : candidates){
+                        if(transaction.containsAll(candidate)){
                             itemsets_support.merge(candidate, 1, (a,b) -> a + b);
                         }
-
-                    } //itemset
-                } //transaction
+                    }
+                }
 
                 level++;
 
@@ -207,33 +224,51 @@ public class SONMR {
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
 
-            HashMap<HashSet<Integer>, Integer> itemsets_support = new HashMap<HashSet<Integer>, Integer>();
             
-            for(String transaction : value.toString().split("\n")){
-                for(HashSet<Integer> itemset : itemsets){
-                    boolean itemset_contained = true;
-                    for(Integer i : itemset){
-                            
-                        boolean contained = false;
-                        for (String item : transaction.split("\\s")) {
-                            Integer temp = Integer.valueOf(item);
-                            if(temp.equals(i)){
-                                contained = true;
-                                break;
-                            }
-                        } // checking
-                        if(!contained){
-                            itemset_contained = false;
-                            break;
-                        }
-                            
-                    } //item in itemset
 
-                    if(itemset_contained){
+            LinkedList<HashSet<Integer>> transactions = new LinkedList<HashSet<Integer>>();
+            for(String transaction : value.toString().split("\n")){
+                HashSet<Integer> new_transaction = new HashSet<Integer>(20);
+                for (String item : transaction.split("\\s")) {
+                    new_transaction.add(Integer.valueOf(item));
+                }
+                transactions.add(new_transaction);
+            }
+            
+            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+            itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+            for(HashSet<Integer> transaction : transactions){
+                for(HashSet<Integer> itemset : itemsets){
+                    if(transaction.containsAll(itemset)){
                         itemsets_support.merge(itemset, 1, (a,b) -> a + b);
                     }
-                } //itemset
-            } //transaction
+                }
+            }
+            // for(String transaction : value.toString().split("\n")){
+            //     for(HashSet<Integer> itemset : itemsets){
+            //         boolean itemset_contained = true;
+            //         for(Integer i : itemset){
+                            
+            //             boolean contained = false;
+            //             for (String item : transaction.split("\\s")) {
+            //                 Integer temp = Integer.valueOf(item);
+            //                 if(temp.equals(i)){
+            //                     contained = true;
+            //                     break;
+            //                 }
+            //             } // checking
+            //             if(!contained){
+            //                 itemset_contained = false;
+            //                 break;
+            //             }
+                            
+            //         } //item in itemset
+
+            //         if(itemset_contained){
+            //             itemsets_support.merge(itemset, 1, (a,b) -> a + b);
+            //         }
+            //     } //itemset
+            // } //transaction
 
             
             // WRITE OUT KEYS
