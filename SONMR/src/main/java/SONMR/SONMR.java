@@ -5,7 +5,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.util.StringTokenizer;
+//import java.util.StringTokenizer;
 import java.util.HashSet;
 import java.util.Map;
 //import java.util.AbstractMap;
@@ -35,9 +35,6 @@ public class SONMR {
         private double corr_factor;
         private int transactions_per_block;
 
-        // This method is new (not in WordCount). We use it to read the
-        // global shared variables and to populate the set containing the
-        // stopwords using the file in the distributed cache.
         public void setup(Context context) throws IOException{
             Configuration conf = context.getConfiguration();
             // Get the values of the global shared variables.
@@ -140,22 +137,6 @@ public class SONMR {
             } while(!candidates.isEmpty()); // while{}
 
             
-            // WRITE OUT KEYS
-            // String toWrite = "";
-            // for(HashSet<Integer> freq_itemset : freq_itemsets){
-            //     for(Integer i : freq_itemset){
-            //         toWrite += i;
-            //         toWrite += " ";
-            //     }
-            //     toWrite += "\n";
-            // }
-
-            // //System.out.println("THIS IS TOWRITE: " + toWrite);
-            
-            // result.set(toWrite);
-            // context.write(result, NullWritable.get());
-
-            
             for(HashSet<Integer> freq_itemset : freq_itemsets){
                 String toWrite = "";
                 for(Integer i : freq_itemset){
@@ -185,25 +166,22 @@ public class SONMR {
         private final Text result = new Text();
         private final IntWritable itemset_support = new IntWritable();
         // To store the global shared variables.
-        private int dataset_size;
-        private int min_supp;
+        // private int dataset_size;
+        // private int min_supp;
         private HashSet<HashSet<Integer>> itemsets = new HashSet<HashSet<Integer>>();
 
-        // This method is new (not in WordCount). We use it to read the
-        // global shared variables and to populate the set containing the
-        // stopwords using the file in the distributed cache.
+        
         public void setup(Context context) throws IOException{
-            Configuration conf = context.getConfiguration();
+            // Configuration conf = context.getConfiguration();
             // Get the values of the global shared variables.
-            dataset_size = conf.getInt("dataset_size", Integer.MAX_VALUE);
-            min_supp = conf.getInt("min_supp", 0);
+            // dataset_size = conf.getInt("dataset_size", Integer.MAX_VALUE);
+            // min_supp = conf.getInt("min_supp", 0);
 
-            // Get the list of files in the distributed cache
+            
             URI[] cacheFiles = context.getCacheFiles();
-            // Create a reader for the only file in the cache, which is the
-            //stopwords.txt file.
+            
             BufferedReader readSet = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFiles[0].toString())));
-            // Read in the file and populate the HashSet
+            
             for (String itemset = readSet.readLine(); itemset != null; itemset = readSet.readLine()) {
                 HashSet<Integer> new_itemset = new HashSet<Integer>();
                 for(String item : itemset.split("\\s")){
@@ -271,6 +249,14 @@ public class SONMR {
             extends Reducer<Text, IntWritable, Text, IntWritable> {
 
         private final IntWritable support = new IntWritable();
+        // global variables
+        int min_supp;
+
+        public void setup(Context context) throws IOException{
+            Configuration conf = context.getConfiguration();
+            // get the values of the global shared variables.
+            min_supp = conf.getInt("min_supp", 0);
+        }
 
         public void reduce(Text key, Iterable<IntWritable> values,
                            Context context
@@ -279,9 +265,10 @@ public class SONMR {
             for (IntWritable val : values) {
                 sum += val.get();
             }
-
-            support.set(sum);
-            context.write(key, support);
+            if(sum >= min_supp){
+                support.set(sum);
+                context.write(key, support);
+            }
         }
     }
 
