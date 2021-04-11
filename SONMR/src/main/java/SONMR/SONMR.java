@@ -13,7 +13,7 @@ import java.util.LinkedList;
 import java.util.Map;
 //import java.util.ArrayList;
 //import java.util.AbstractMap;
-import java.util.HashMap;
+//import java.util.HashMap;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
