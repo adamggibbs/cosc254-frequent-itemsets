@@ -5,15 +5,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
-//import java.util.StringTokenizer;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
-//import java.util.ArrayList;
-//import java.util.AbstractMap;
-//import java.util.HashMap;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -56,10 +52,7 @@ public class SONMR {
 
             LinkedList<HashSet<Integer>> transactions = new LinkedList<HashSet<Integer>>();
 
-            //HashSet<HashSet<Integer>> freq_itemsets = new HashSet<HashSet<Integer>>();
-
             LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(100);
-            // HashSet<HashSet<Integer>> candidates = new HashSet<HashSet<Integer>>();
 
             // find support of one sets
             for(String transaction : value.toString().split("\n")){
@@ -110,54 +103,6 @@ public class SONMR {
                     } // if freq
                 } // for 
 
-                // add all the frequent itemsets to the HashSet
-                // freq_itemsets.addAll(current_freq_sets);
-
-                // candidates.clear();
-                // for(HashSet<Integer> entry1 : current_freq_sets) {
-                    
-                //     for(HashSet<Integer> entry2 : current_freq_sets) {
-                                
-                //         if(!entry1.equals(entry2)){
-                //             HashSet<Integer> new_candidate = new HashSet<Integer>();
-                //             new_candidate.addAll(entry1);
-                //             new_candidate.addAll(entry2);
-                //             if(new_candidate.size() == level + 1){
-                //                 candidates.add(new_candidate);
-                //             }
-                            
-                //         } //generate candidates
-                //     } //entry2
-                // } //entry1
-                
-                // itemsets_support = new HashMap<HashSet<Integer>, Integer>();
-                // for(String transaction : value.toString().split("\n")){
-                //     for(HashSet<Integer> candidate : candidates){
-                //         boolean itemset_contained = true;
-                //         for(Integer i : candidate){
-                            
-                //             boolean contained = false;
-                //             for (String item : transaction.split("\\s")) {
-                //                 Integer temp = Integer.valueOf(item);
-                //                 if(temp.equals(i)){
-                //                     contained = true;
-                //                     break;
-                //                 }
-                //             } // checking
-                //             if(!contained){
-                //                 itemset_contained = false;
-                //                 break;
-                //             }
-                            
-                //         } //item in itemset
-
-                //         if(itemset_contained){
-                //             itemsets_support.merge(candidate, 1, (a,b) -> a + b);
-                //         }
-
-                //     } //itemset
-                // } //transaction
-
                 itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
                 for(HashSet<Integer> transaction : transactions){
                     for(HashSet<Integer> candidate : candidates){
@@ -170,17 +115,6 @@ public class SONMR {
                 level++;
 
             } while(!candidates.isEmpty()); // while{}
-
-            
-            // for(HashSet<Integer> freq_itemset : freq_itemsets){
-            //     String toWrite = "";
-            //     for(Integer i : freq_itemset){
-            //         toWrite += i;
-            //         toWrite += " ";
-            //     }
-            //     result.set(toWrite);
-            //     context.write(result, NullWritable.get());
-            // }
 
         } // map()
     } // Mapper1
@@ -201,8 +135,6 @@ public class SONMR {
         private final Text result = new Text();
         private final IntWritable itemset_support = new IntWritable();
         // To store the global shared variables.
-        // private int dataset_size;
-        // private int min_supp;
         private LinkedList<HashSet<Integer>> itemsets = new LinkedList<HashSet<Integer>>();
 
         
@@ -244,31 +176,7 @@ public class SONMR {
                     }
                 }
             }
-            // for(String transaction : value.toString().split("\n")){
-            //     for(HashSet<Integer> itemset : itemsets){
-            //         boolean itemset_contained = true;
-            //         for(Integer i : itemset){
-                            
-            //             boolean contained = false;
-            //             for (String item : transaction.split("\\s")) {
-            //                 Integer temp = Integer.valueOf(item);
-            //                 if(temp.equals(i)){
-            //                     contained = true;
-            //                     break;
-            //                 }
-            //             } // checking
-            //             if(!contained){
-            //                 itemset_contained = false;
-            //                 break;
-            //             }
-                            
-            //         } //item in itemset
-
-            //         if(itemset_contained){
-            //             itemsets_support.merge(itemset, 1, (a,b) -> a + b);
-            //         }
-            //     } //itemset
-            // } //transaction
+            
 
             
             // WRITE OUT KEYS
@@ -348,7 +256,7 @@ public class SONMR {
         FileInputFormat.addInputPath(job1, new Path(args[4]));
         FileOutputFormat.setOutputPath(job1, new Path(args[5]));
 
-        job1.waitForCompletion(true);
+        //job1.waitForCompletion(true);
 
         // Creating and setting up the second job. Must happen after setting the
         // global shared variables in the configuration
@@ -367,6 +275,6 @@ public class SONMR {
         Path first_reducer_output = new Path(args[5] + "/part-r-00000");
         job2.addCacheFile(first_reducer_output.toUri());
         
-        System.exit(job2.waitForCompletion(true) ? 0 : 1);
+        System.exit(job1.waitForCompletion(true) && job2.waitForCompletion(true) ? 0 : 1);
     }
 }
