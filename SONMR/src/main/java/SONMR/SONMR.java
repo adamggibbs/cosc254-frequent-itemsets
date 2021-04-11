@@ -179,99 +179,111 @@ public class SONMR {
         }
     }
 
-    // public static class Mapper2
-    //         extends Mapper<Object, Text, Text, IntWritable> {
+    public static class Mapper2
+            extends Mapper<Object, Text, Text, IntWritable> {
 
-    //     private final Text result = new Text();
-    //     private final IntWritable final_support = new IntWritable();
-    //     // To store the global shared variables.
-    //     private int dataset_size;
-    //     private int min_supp;
-    //     private HashSet<HashSet<Integer>> itemsets = new HashSet<HashSet<Integer>>();
+        private final Text result = new Text();
+        private final IntWritable itemset_support = new IntWritable();
+        // To store the global shared variables.
+        private int dataset_size;
+        private int min_supp;
+        private HashSet<HashSet<Integer>> itemsets = new HashSet<HashSet<Integer>>();
 
-    //     // This method is new (not in WordCount). We use it to read the
-    //     // global shared variables and to populate the set containing the
-    //     // stopwords using the file in the distributed cache.
-    //     public void setup(Context context) throws IOException{
-    //         Configuration conf = context.getConfiguration();
-    //         // Get the values of the global shared variables.
-    //         dataset_size = conf.getInt("dataset_size", Integer.MAX_VALUE);
-    //         min_supp = conf.getInt("min_supp", 0);
+        // This method is new (not in WordCount). We use it to read the
+        // global shared variables and to populate the set containing the
+        // stopwords using the file in the distributed cache.
+        public void setup(Context context) throws IOException{
+            Configuration conf = context.getConfiguration();
+            // Get the values of the global shared variables.
+            dataset_size = conf.getInt("dataset_size", Integer.MAX_VALUE);
+            min_supp = conf.getInt("min_supp", 0);
 
-    //         // Get the list of files in the distributed cache
-    //         URI[] cacheFiles = context.getCacheFiles();
-    //         // Create a reader for the only file in the cache, which is the
-    //         //stopwords.txt file.
-    //         BufferedReader readSet = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFiles[0].toString())));
-    //         // Read in the file and populate the HashSet
-    //         for (String itemset = readSet.readLine(); itemset != null; itemset = readSet.readLine()) {
-    //             HashSet<Integer> new_itemset = new HashSet<Integer>();
-    //             for(String item : itemset.split("\\s")){
-    //                 new_itemset.add(Integer.valueOf(item));
-    //             }
-    //             itemsets.add(new_itemset);
-    //         }
-    //     }
+            // Get the list of files in the distributed cache
+            URI[] cacheFiles = context.getCacheFiles();
+            // Create a reader for the only file in the cache, which is the
+            //stopwords.txt file.
+            BufferedReader readSet = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFiles[0].toString())));
+            // Read in the file and populate the HashSet
+            for (String itemset = readSet.readLine(); itemset != null; itemset = readSet.readLine()) {
+                HashSet<Integer> new_itemset = new HashSet<Integer>();
+                for(String item : itemset.split("\\s")){
+                    new_itemset.add(Integer.valueOf(item));
+                }
+                itemsets.add(new_itemset);
+            }
+        }
 
-    //     public void map(Object key, Text value, Context context
-    //     ) throws IOException, InterruptedException {
+        public void map(Object key, Text value, Context context
+        ) throws IOException, InterruptedException {
 
-    //         HashMap<HashSet<Integer>, Integer> itemsets_support = new HashMap<HashSet<Integer>, Integer>();
+            HashMap<HashSet<Integer>, Integer> itemsets_support = new HashMap<HashSet<Integer>, Integer>();
             
-    //         for(String transaction : value.toString().split("\n")){
-    //             for(HashSet<Integer> itemset : itemsets){
-    //                 boolean itemset_contained = true;
-    //                 for(Integer i : itemset){
+            for(String transaction : value.toString().split("\n")){
+                for(HashSet<Integer> itemset : itemsets){
+                    boolean itemset_contained = true;
+                    for(Integer i : itemset){
                             
-    //                     boolean contained = false;
-    //                     for (String item : transaction.split("\\s")) {
-    //                         Integer temp = Integer.valueOf(item);
-    //                         if(temp.equals(i)){
-    //                             contained = true;
-    //                             break;
-    //                         }
-    //                     } // checking
-    //                     if(!contained){
-    //                         itemset_contained = false;
-    //                         break;
-    //                     }
+                        boolean contained = false;
+                        for (String item : transaction.split("\\s")) {
+                            Integer temp = Integer.valueOf(item);
+                            if(temp.equals(i)){
+                                contained = true;
+                                break;
+                            }
+                        } // checking
+                        if(!contained){
+                            itemset_contained = false;
+                            break;
+                        }
                             
-    //                 } //item in itemset
+                    } //item in itemset
 
-    //                 if(itemset_contained){
-    //                     itemsets_support.merge(itemset, 1, (a,b) -> a + b);
-    //                 }
-    //             } //itemset
-    //         } //transaction
+                    if(itemset_contained){
+                        itemsets_support.merge(itemset, 1, (a,b) -> a + b);
+                    }
+                } //itemset
+            } //transaction
 
             
-    //         // WRITE OUT KEYS
-    //         String toWrite = "";
-    //         for(HashSet<Integer> itemset : itemsets){
-    //             for(Integer i : itemset){
-    //                 toWrite += i;
-    //                 toWrite += " ";
-    //             }
-    //             toWrite += "\n";
-    //         }
+            // WRITE OUT KEYS
 
-    //         //System.out.println("THIS IS TOWRITE: " + toWrite);
-            
-    //         result.set(toWrite);
-    //         context.write(result, NullWritable.get());
+            for(Map.Entry<HashSet<Integer>, Integer> entry : itemsets_support.entrySet()) {
+                    
+                HashSet<Integer> itemset = entry.getKey();
+                String toWrite = "";
+                for(Integer i : itemset){
+                    toWrite += i;
+                    toWrite += " ";
+                }
+                result.set(toWrite);
+                
+                Integer v = entry.getValue();
+                itemset_support.set(v.intValue());
+                
+                context.write(result, itemset_support);
 
-    //     } // map()
-    // } // Mapper2 class
+            }
 
-    // public static class Reducer2
-    //         extends Reducer<Text, NullWritable, Text, NullWritable> {
+        } // map()
+    } // Mapper2 class
 
-    //     public void reduce(Text key, Iterable<NullWritable> values,
-    //                        Context context
-    //     ) throws IOException, InterruptedException {
-    //         context.write(key, NullWritable.get());
-    //     }
-    // }
+    public static class Reducer2
+            extends Reducer<Text, IntWritable, Text, IntWritable> {
+
+        private final IntWritable support = new IntWritable();
+
+        public void reduce(Text key, Iterable<IntWritable> values,
+                           Context context
+        ) throws IOException, InterruptedException {
+            int sum = 0;
+            for (IntWritable val : values) {
+                sum += val.get();
+            }
+
+            support.set(sum);
+            context.write(key, support);
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         
@@ -301,25 +313,25 @@ public class SONMR {
         FileInputFormat.addInputPath(job1, new Path(args[4]));
         FileOutputFormat.setOutputPath(job1, new Path(args[5]));
 
-        System.exit(job1.waitForCompletion(true) ? 0 : 1);
+        job1.waitForCompletion(true);
 
         // Creating and setting up the second job. Must happen after setting the
         // global shared variables in the configuration
-        // Job job2 = Job.getInstance(conf, "sonmr");
-        // job2.setJarByClass(SONMR.class);
-        // job2.setMapperClass(Mapper2.class);
-        // job2.setReducerClass(Reducer2.class);
-        // job2.setInputFormatClass(MultiLineInputFormat.class);
-        // job2.setOutputKeyClass(Text.class);
-        // job2.setOutputValueClass(IntWritable.class);
-        // NLineInputFormat.setNumLinesPerSplit(job2, transactions_per_block);
+        Job job2 = Job.getInstance(conf, "sonmr");
+        job2.setJarByClass(SONMR.class);
+        job2.setMapperClass(Mapper2.class);
+        job2.setReducerClass(Reducer2.class);
+        job2.setInputFormatClass(MultiLineInputFormat.class);
+        job2.setOutputKeyClass(Text.class);
+        job2.setOutputValueClass(IntWritable.class);
+        NLineInputFormat.setNumLinesPerSplit(job2, transactions_per_block);
 
-        // FileInputFormat.addInputPath(job2, new Path(args[4]));
-        // FileOutputFormat.setOutputPath(job2, new Path(args[6]));
+        FileInputFormat.addInputPath(job2, new Path(args[4]));
+        FileOutputFormat.setOutputPath(job2, new Path(args[6]));
 
-        // Path first_reducer_output = new Path(args[5] + "/part-r-00000");
-        // job2.addCacheFile(first_reducer_output.toUri());
+        Path first_reducer_output = new Path(args[5] + "/part-r-00000");
+        job2.addCacheFile(first_reducer_output.toUri());
         
-        // System.exit(job2.waitForCompletion(true) ? 0 : 1);
+        System.exit(job2.waitForCompletion(true) ? 0 : 1);
     }
 }
