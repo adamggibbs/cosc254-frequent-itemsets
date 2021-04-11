@@ -7,7 +7,9 @@ import java.io.InputStreamReader;
 import java.net.URI;
 //import java.util.StringTokenizer;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.ArrayList;
 //import java.util.AbstractMap;
 import java.util.HashMap;
 
@@ -50,10 +52,10 @@ public class SONMR {
 
             double thres = corr_factor * ((double)min_supp / (double)dataset_size) * (double)transactions_per_block;
 
-            HashSet<HashSet<Integer>> freq_itemsets = new HashSet<HashSet<Integer>>();
+            //HashSet<HashSet<Integer>> freq_itemsets = new HashSet<HashSet<Integer>>();
 
-            HashMap<HashSet<Integer>, Integer> itemsets_support = new HashMap<HashSet<Integer>, Integer>();
-            HashSet<HashSet<Integer>> candidates = new HashSet<HashSet<Integer>>();
+            HashMap<HashSet<Integer>, Integer> itemsets_support = new HashMap<HashSet<Integer>, Integer>(100);
+            // HashSet<HashSet<Integer>> candidates = new HashSet<HashSet<Integer>>();
 
             // find support of one sets
             for(String transaction : value.toString().split("\n")){
@@ -65,43 +67,62 @@ public class SONMR {
             }
             
             int level = 1;
+            HashSet<HashSet<Integer>> candidates;
+            ArrayList<HashSet<Integer>> current_freq_sets;
             do {
 
-                HashSet<HashSet<Integer>> current_freq_sets = new HashSet<HashSet<Integer>>();
-                
+                current_freq_sets = new ArrayList<HashSet<Integer>>();
+                candidates = new HashSet<HashSet<Integer>>();
                 // the following for each loop structure is from stack overflow:
                 // https://stackoverflow.com/questions/4234985/how-to-for-each-the-hashmap
                 for(Map.Entry<HashSet<Integer>, Integer> entry : itemsets_support.entrySet()) {
                     
                     HashSet<Integer> itemset = entry.getKey();
-                    Integer v = entry.getValue();
+                    Integer support = entry.getValue();
 
-                    if(v.intValue() >= thres){
-                        current_freq_sets.add(itemset);
-                    }
-                }
-
-                // add all the frequent itemsets to the HashSet
-                freq_itemsets.addAll(current_freq_sets);
-
-                candidates.clear();
-                for(HashSet<Integer> entry1 : current_freq_sets) {
-                    
-                    for(HashSet<Integer> entry2 : current_freq_sets) {
-                                
-                        if(!entry1.equals(entry2)){
+                    if(support.intValue() >= thres){
+                        for(HashSet<Integer> freq_itemset : current_freq_sets) {     
+                                    
                             HashSet<Integer> new_candidate = new HashSet<Integer>();
-                            new_candidate.addAll(entry1);
-                            new_candidate.addAll(entry2);
+                            new_candidate.addAll(itemset);
+                            new_candidate.addAll(freq_itemset);
                             if(new_candidate.size() == level + 1){
                                 candidates.add(new_candidate);
                             }
+                        }   
+                        current_freq_sets.add(itemset);
+                        //freq_itemsets.add(itemset);
+                        String toWrite = "";
+                        for(Integer i : itemset){
+                            toWrite += i;
+                            toWrite += " ";
+                        }
+                        result.set(toWrite);
+                        context.write(result, NullWritable.get());
+                    } // if freq
+                } // for 
+
+                // add all the frequent itemsets to the HashSet
+                // freq_itemsets.addAll(current_freq_sets);
+
+                // candidates.clear();
+                // for(HashSet<Integer> entry1 : current_freq_sets) {
+                    
+                //     for(HashSet<Integer> entry2 : current_freq_sets) {
+                                
+                //         if(!entry1.equals(entry2)){
+                //             HashSet<Integer> new_candidate = new HashSet<Integer>();
+                //             new_candidate.addAll(entry1);
+                //             new_candidate.addAll(entry2);
+                //             if(new_candidate.size() == level + 1){
+                //                 candidates.add(new_candidate);
+                //             }
                             
-                        } //generate candidates
-                    } //entry2
-                } //entry1
+                //         } //generate candidates
+                //     } //entry2
+                // } //entry1
                 
-                itemsets_support.clear();
+                itemsets_support = new HashMap<HashSet<Integer>, Integer>();
                 for(String transaction : value.toString().split("\n")){
                     for(HashSet<Integer> candidate : candidates){
                         boolean itemset_contained = true;
@@ -134,15 +155,15 @@ public class SONMR {
             } while(!candidates.isEmpty()); // while{}
 
             
-            for(HashSet<Integer> freq_itemset : freq_itemsets){
-                String toWrite = "";
-                for(Integer i : freq_itemset){
-                    toWrite += i;
-                    toWrite += " ";
-                }
-                result.set(toWrite);
-                context.write(result, NullWritable.get());
-            }
+            // for(HashSet<Integer> freq_itemset : freq_itemsets){
+            //     String toWrite = "";
+            //     for(Integer i : freq_itemset){
+            //         toWrite += i;
+            //         toWrite += " ";
+            //     }
+            //     result.set(toWrite);
+            //     context.write(result, NullWritable.get());
+            // }
 
         } // map()
     } // Mapper1
@@ -165,7 +186,7 @@ public class SONMR {
         // To store the global shared variables.
         // private int dataset_size;
         // private int min_supp;
-        private HashSet<HashSet<Integer>> itemsets = new HashSet<HashSet<Integer>>();
+        private LinkedList<HashSet<Integer>> itemsets = new LinkedList<HashSet<Integer>>();
 
         
         public void setup(Context context) throws IOException{
