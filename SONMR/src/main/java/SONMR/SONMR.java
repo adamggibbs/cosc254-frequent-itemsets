@@ -218,7 +218,7 @@ public class SONMR {
         private final IntWritable itemset_support = new IntWritable();
         
         // create a LinkedList of LinkedHashSets to store itemsets from Mapper1 output
-        private LinkedList<LinkedHashSet<Integer>> itemsets = new LinkedList<LinkedHashSet<Integer>>();
+        private LinkedHashSet<LinkedHashSet<Integer>> itemsets = new LinkedHashSet<LinkedHashSet<Integer>>();
 
         // setup function to get cached file with Mapper1 output
         public void setup(Context context) throws IOException{
@@ -245,7 +245,7 @@ public class SONMR {
             // same as Mapper1 semantics
             LinkedList<LinkedHashSet<Integer>> transactions = new LinkedList<LinkedHashSet<Integer>>();
             for(String transaction : value.toString().split("\n")){
-                LinkedHashSet<Integer> new_transaction = new LinkedHashSet<Integer>(20);
+                LinkedHashSet<Integer> new_transaction = new LinkedHashSet<Integer>();
                 for (String item : transaction.split("\\s")) {
                     new_transaction.add(Integer.valueOf(item));
                 }
