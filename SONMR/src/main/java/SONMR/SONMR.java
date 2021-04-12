@@ -56,6 +56,11 @@ public class SONMR {
             // calculate threshold for first mappers 
             double thres = corr_factor * ((double)min_supp / (double)dataset_size) * (double)transactions_per_block;
 
+            int min_thres = (int) Math.ceil(thres);
+
+            // frequent itemsets for pruning
+            LinkedHashSet<HashSet<Integer>> all_freq_itemsets = new LinkedHashSet<HashSet<Integer>>();
+
             // create a LinkedList to store all the transactions as HashSets
             // this will make lookups much quicker in the next steps
             LinkedList<HashSet<Integer>> transactions = new LinkedList<HashSet<Integer>>();
@@ -64,13 +69,12 @@ public class SONMR {
             // we use a Linked HashMap so we can have more efficient iteration
             // give it 1000 buckets, there shouldn't be much more than 1000 itemsets at each level
             // this saves time from rehashing when buckets are added 
-            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(1000);
+            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
 
-            // find support of size one itemsets and create LinkedList of HashSet transactions
+            LinkedList<HashSet<Integer>> current_freq_sets = new LinkedList<HashSet<Integer>>();
+
             for(String transaction : value.toString().split("\n")){
-
-                // create a HashSet for this transaction
-                HashSet<Integer> new_transaction = new HashSet<Integer>(20);
+                HashSet<Integer> new_transaction = new HashSet<Integer>();
                 // loop through items and update the support for that item
                 // also add that item to the transaction HashSet
                 for (String item : transaction.split("\\s")) {
@@ -79,52 +83,69 @@ public class SONMR {
                     HashSet<Integer> itemset = new HashSet<Integer>();
                     itemset.add(Integer.valueOf(item));
                     itemsets_support.merge(itemset, 1, (a,b) -> a + b);
+                    if(itemsets_support.get(itemset) == min_thres){
+                        current_freq_sets.add(itemset);
+                        all_freq_itemsets.add(itemset);
+                    
+                        result.set(item);
+                        context.write(result, NullWritable.get());
+                    }
                 }
                 // add new transaction HashSet to LinkedList of transactions
                 transactions.add(new_transaction);
             }
+
             
             int level = 1;
             LinkedHashSet<HashSet<Integer>> candidates;
-            LinkedList<HashSet<Integer>> current_freq_sets;
+            
             do {
-
-                current_freq_sets = new LinkedList<HashSet<Integer>>();
+                
                 candidates = new LinkedHashSet<HashSet<Integer>>();
-                // the following for each loop structure is from stack overflow:
-                // https://stackoverflow.com/questions/4234985/how-to-for-each-the-hashmap
-                for(Map.Entry<HashSet<Integer>, Integer> entry : itemsets_support.entrySet()) {
-                    
-                    HashSet<Integer> itemset = entry.getKey();
-                    Integer support = entry.getValue();
 
-                    if(support.intValue() >= thres){
-                        for(HashSet<Integer> freq_itemset : current_freq_sets) {     
-                                    
-                            HashSet<Integer> new_candidate = new HashSet<Integer>();
-                            new_candidate.addAll(itemset);
-                            new_candidate.addAll(freq_itemset);
+                for(HashSet<Integer> freq_set1 : current_freq_sets){
+                    for(HashSet<Integer> freq_set2 : current_freq_sets){
+                        HashSet<Integer> new_candidate = new HashSet<Integer>();
+                            new_candidate.addAll(freq_set1);
+                            new_candidate.addAll(freq_set2);
                             if(new_candidate.size() == level + 1){
-                                candidates.add(new_candidate);
+                                boolean toAdd = true;
+                                for(Integer i : new_candidate){
+                                    HashSet<Integer> pruned = new HashSet<Integer>();
+                                    pruned.addAll(new_candidate);
+                                    pruned.remove(i);
+                                    //System.out.println(pruned);
+                                    if(!all_freq_itemsets.contains(pruned)){
+                                        toAdd = false;
+                                    }
+                                }
+                                if(toAdd){
+                                    candidates.add(new_candidate);
+                                }
+                                
                             }
-                        }   
-                        current_freq_sets.add(itemset);
-                        
-                        String toWrite = "";
-                        for(Integer i : itemset){
-                            toWrite += i;
-                            toWrite += " ";
-                        }
-                        result.set(toWrite);
-                        context.write(result, NullWritable.get());
-                    } // if freq
-                } // for 
+                    }
+                }
+
 
                 itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+                current_freq_sets = new LinkedList<HashSet<Integer>>();
                 for(HashSet<Integer> transaction : transactions){
                     for(HashSet<Integer> candidate : candidates){
                         if(transaction.containsAll(candidate)){
                             itemsets_support.merge(candidate, 1, (a,b) -> a + b);
+                            if(itemsets_support.get(candidate) == min_thres){
+                                current_freq_sets.add(candidate);
+                                all_freq_itemsets.add(candidate);
+                                
+                                String toWrite = "";
+                                for(Integer i : candidate){
+                                    toWrite += i;
+                                    toWrite += " ";
+                                }
+                                result.set(toWrite);
+                                context.write(result, NullWritable.get());
+                            }
                         }
                     }
                 }
@@ -151,7 +172,7 @@ public class SONMR {
         private final IntWritable itemset_support = new IntWritable();
         
 
-        private LinkedList<HashSet<Integer>> itemsets = new LinkedList<HashSet<Integer>>();
+        private LinkedList<LinkedHashSet<Integer>> itemsets = new LinkedList<LinkedHashSet<Integer>>();
 
         
         public void setup(Context context) throws IOException{
@@ -161,7 +182,7 @@ public class SONMR {
             BufferedReader readSet = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFiles[0].toString())));
             
             for (String itemset = readSet.readLine(); itemset != null; itemset = readSet.readLine()) {
-                HashSet<Integer> new_itemset = new HashSet<Integer>();
+                LinkedHashSet<Integer> new_itemset = new LinkedHashSet<Integer>();
                 for(String item : itemset.split("\\s")){
                     new_itemset.add(Integer.valueOf(item));
                 }
@@ -169,21 +190,18 @@ public class SONMR {
             }
         }
 
-        public void map(Object key, Text value, Context context
-        ) throws IOException, InterruptedException {
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 
-            
-
-            LinkedList<HashSet<Integer>> transactions = new LinkedList<HashSet<Integer>>();
+            LinkedList<LinkedHashSet<Integer>> transactions = new LinkedList<LinkedHashSet<Integer>>();
             for(String transaction : value.toString().split("\n")){
-                HashSet<Integer> new_transaction = new HashSet<Integer>(20);
+                LinkedHashSet<Integer> new_transaction = new LinkedHashSet<Integer>(20);
                 for (String item : transaction.split("\\s")) {
                     new_transaction.add(Integer.valueOf(item));
                 }
                 transactions.add(new_transaction);
             }
             
-            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(500);
             itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
             for(HashSet<Integer> transaction : transactions){
                 for(HashSet<Integer> itemset : itemsets){
@@ -192,10 +210,7 @@ public class SONMR {
                     }
                 }
             }
-            
 
-            
-            // WRITE OUT KEYS
 
             for(Map.Entry<HashSet<Integer>, Integer> entry : itemsets_support.entrySet()) {
                     
@@ -289,6 +304,14 @@ public class SONMR {
         Path first_reducer_output = new Path(args[5] + "/part-r-00000");
         job2.addCacheFile(first_reducer_output.toUri());
         
-        System.exit(job1.waitForCompletion(true) && job2.waitForCompletion(true) ? 0 : 1);
+        double start_time = System.currentTimeMillis();
+        job1.waitForCompletion(true);
+        double mid_time = System.currentTimeMillis();
+        job2.waitForCompletion(true);
+        System.out.println(mid_time - start_time);
+        double end_time = System.currentTimeMillis();
+        System.out.println(end_time - mid_time);
+        System.out.println(end_time - start_time);
+        //System.exit(job1.waitForCompletion(true) && job2.waitForCompletion(true) ? 0 : 1);
     }
 }
