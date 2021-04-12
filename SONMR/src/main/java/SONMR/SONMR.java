@@ -71,18 +71,36 @@ public class SONMR {
             // this saves time from rehashing when buckets are added 
             LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
 
+            // create a linkedList of the current frequent sets found when calculating supports
+            // this helps create candidates
             LinkedList<HashSet<Integer>> current_freq_sets = new LinkedList<HashSet<Integer>>();
 
+            // loop through transactions the first time
+            // find supports of size 1 itemsets 
+            // and put transactions into HashSets for easy contains() calls
             for(String transaction : value.toString().split("\n")){
+
+                // create a HashSet to store this transaction
                 HashSet<Integer> new_transaction = new HashSet<Integer>();
+
                 // loop through items and update the support for that item
                 // also add that item to the transaction HashSet
                 for (String item : transaction.split("\\s")) {
+                    
+                    // add item to transaction
                     new_transaction.add(Integer.valueOf(item));
 
+                    // put item into an itemset
                     HashSet<Integer> itemset = new HashSet<Integer>();
                     itemset.add(Integer.valueOf(item));
+
+                    // if itemset is not in support HashMap, add with value 1
+                    // otherwise increment value by 1
                     itemsets_support.merge(itemset, 1, (a,b) -> a + b);
+
+                    // if itemset reaches min threshold:
+                    // add it to frequent itemsets
+                    // then write out key with NullWritable since it is a frequent itemset
                     if(itemsets_support.get(itemset) == min_thres){
                         current_freq_sets.add(itemset);
                         all_freq_itemsets.add(itemset);
@@ -91,49 +109,75 @@ public class SONMR {
                         context.write(result, NullWritable.get());
                     }
                 }
+
                 // add new transaction HashSet to LinkedList of transactions
                 transactions.add(new_transaction);
             }
 
-            
+            // int to store size of itemsets we're processing
             int level = 1;
+            // LinkedHashSet to store our candidates
+            // HashSet removes duplicates
+            // Linked allows it to be easily iterable
             LinkedHashSet<HashSet<Integer>> candidates;
-            
+
+            // do while loop that loops thru,
+            // generates candidates,
+            // then finds their support
             do {
                 
+                // initialize candidates LinkedHashSet
                 candidates = new LinkedHashSet<HashSet<Integer>>();
 
+                // generate candidates and prune from freq itemsets of size level-1
+                // loop through all pairs of frequent sets to combine to form potential candidates
                 for(HashSet<Integer> freq_set1 : current_freq_sets){
                     for(HashSet<Integer> freq_set2 : current_freq_sets){
+
+                        // create a new HashSet to store our potential candidate
                         HashSet<Integer> new_candidate = new HashSet<Integer>();
-                            new_candidate.addAll(freq_set1);
-                            new_candidate.addAll(freq_set2);
-                            if(new_candidate.size() == level + 1){
-                                boolean toAdd = true;
-                                for(Integer i : new_candidate){
-                                    HashSet<Integer> pruned = new HashSet<Integer>();
-                                    pruned.addAll(new_candidate);
-                                    pruned.remove(i);
-                                    //System.out.println(pruned);
-                                    if(!all_freq_itemsets.contains(pruned)){
-                                        toAdd = false;
-                                    }
+                        // add all elements of the two freq sets
+                        new_candidate.addAll(freq_set1);
+                        new_candidate.addAll(freq_set2);
+                        // make sure potential candidate is of level+1
+                        if(new_candidate.size() == level + 1){
+                            boolean toAdd = true;
+                            // check to make sure all subsets of size-1 are frequent
+                            for(Integer i : new_candidate){
+                               HashSet<Integer> pruned = new HashSet<Integer>();
+                                pruned.addAll(new_candidate);
+                                pruned.remove(i);
+                                    
+                                if(!all_freq_itemsets.contains(pruned)){
+                                    toAdd = false;
                                 }
-                                if(toAdd){
-                                    candidates.add(new_candidate);
-                                }
-                                
                             }
-                    }
-                }
+                            // if passed the pruning, add to candidates
+                            if(toAdd){
+                                candidates.add(new_candidate);
+                            } // pruning
+                                
+                        } // candidate check
+                    } // freq set 1 loop
+                } // freq set 2 loop
 
 
+                // initial new support and current freq sets data structures 
+                // to clear them and store next round 
                 itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
                 current_freq_sets = new LinkedList<HashSet<Integer>>();
+
+                // loop through all transactions and see if they contain the candidate itemsets
                 for(HashSet<Integer> transaction : transactions){
+                    // check to see if each candidate is in the transaction
                     for(HashSet<Integer> candidate : candidates){
+                        // if candidate is in transaction, increment its support
                         if(transaction.containsAll(candidate)){
                             itemsets_support.merge(candidate, 1, (a,b) -> a + b);
+
+                            // if support has gotten to min threshold:
+                            // add it to the freq itemsets data structures
+                            // and write out key with NullWritable
                             if(itemsets_support.get(candidate) == min_thres){
                                 current_freq_sets.add(candidate);
                                 all_freq_itemsets.add(candidate);
@@ -145,11 +189,13 @@ public class SONMR {
                                 }
                                 result.set(toWrite);
                                 context.write(result, NullWritable.get());
-                            }
-                        }
-                    }
-                }
+                                
+                            } // if support surpasses min threshold
+                        } // itemset in transaction check
+                    } // loop thru candidates
+                } // loop thru transactions
 
+                // increment level
                 level++;
 
             } while(!candidates.isEmpty()); // while{}
@@ -171,16 +217,19 @@ public class SONMR {
         private final Text result = new Text();
         private final IntWritable itemset_support = new IntWritable();
         
-
+        // create a LinkedList of LinkedHashSets to store itemsets from Mapper1 output
         private LinkedList<LinkedHashSet<Integer>> itemsets = new LinkedList<LinkedHashSet<Integer>>();
 
-        
+        // setup function to get cached file with Mapper1 output
         public void setup(Context context) throws IOException{
             
+            // get cached files from config
             URI[] cacheFiles = context.getCacheFiles();
             
+            // read in cached file
             BufferedReader readSet = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFiles[0].toString())));
             
+            // loop thru file and put each itemset in a HashSet
             for (String itemset = readSet.readLine(); itemset != null; itemset = readSet.readLine()) {
                 LinkedHashSet<Integer> new_itemset = new LinkedHashSet<Integer>();
                 for(String item : itemset.split("\\s")){
@@ -192,6 +241,8 @@ public class SONMR {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 
+            // create a LinkedList of LinkedHashSets to store transactions for quicker lookups later
+            // same as Mapper1 semantics
             LinkedList<LinkedHashSet<Integer>> transactions = new LinkedList<LinkedHashSet<Integer>>();
             for(String transaction : value.toString().split("\n")){
                 LinkedHashSet<Integer> new_transaction = new LinkedHashSet<Integer>(20);
@@ -201,8 +252,12 @@ public class SONMR {
                 transactions.add(new_transaction);
             }
             
-            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>(500);
-            itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+            // create a LinkedHashMap to get the itemsets supports
+            LinkedHashMap<HashSet<Integer>, Integer> itemsets_support = new LinkedHashMap<HashSet<Integer>, Integer>();
+            
+            // loop thru all transactions and
+            // if itemset is in that transaction,
+            // incremenet its support
             for(HashSet<Integer> transaction : transactions){
                 for(HashSet<Integer> itemset : itemsets){
                     if(transaction.containsAll(itemset)){
@@ -211,7 +266,8 @@ public class SONMR {
                 }
             }
 
-
+            // loop through HashMap of support and output key value
+            // pairs of (key, support)
             for(Map.Entry<HashSet<Integer>, Integer> entry : itemsets_support.entrySet()) {
                     
                 HashSet<Integer> itemset = entry.getKey();
@@ -261,12 +317,15 @@ public class SONMR {
 
     public static void main(String[] args) throws Exception {
         
+        // parse command line args
         int dataset_size = Integer.parseInt(args[0]);
         int transactions_per_block = Integer.parseInt(args[1]);
         int min_supp = Integer.parseInt(args[2]);
         double corr_factor = Double.parseDouble(args[3]);
                
+        // create config
         Configuration conf = new Configuration();
+        
         // Setting the global shared variables in the configuration
         conf.setInt("dataset_size", dataset_size);
         conf.setInt("transactions_per_block", transactions_per_block);
@@ -305,13 +364,18 @@ public class SONMR {
         job2.addCacheFile(first_reducer_output.toUri());
         
         double start_time = System.currentTimeMillis();
-        job1.waitForCompletion(true);
+
+        boolean finished1 = job1.waitForCompletion(true);
+
         double mid_time = System.currentTimeMillis();
-        job2.waitForCompletion(true);
         System.out.println(mid_time - start_time);
+
+        boolean finished2 = job2.waitForCompletion(true);
+        
         double end_time = System.currentTimeMillis();
         System.out.println(end_time - mid_time);
         System.out.println(end_time - start_time);
-        //System.exit(job1.waitForCompletion(true) && job2.waitForCompletion(true) ? 0 : 1);
+
+        System.exit(finished1 && finished2 ? 0 : 1);
     }
 }
